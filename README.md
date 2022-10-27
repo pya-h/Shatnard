@@ -15,9 +15,8 @@ With two different approach, two different algorythms, mechanisms, and also game
         the game can be started with different kind of fields and arrangements
     * both are written in console but this variation is much user fiendlier and understandable
     * But the code is much complicated than variation 1, and also much more professional.
-    
-Its ony 
-Shatnard console game; a simplae combination of two famous board games: Chess &amp; backgammon.
+
+Shatnard console game; a simple combination of two famous board games: Chess &amp; backgammon.
 Its mostly written considering backgammon rules and gameplay with a few minor changes and some chess rules; e.g. pieces are not all same and they have chess names actually.
 winner is the one who moves his/her pieces all out of the board faster.
 Gameplay note:
