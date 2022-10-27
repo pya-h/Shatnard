@@ -3,7 +3,7 @@ There Are Two different variations of the game, Both written in:
 # Language: C
 With two different approach, two different algorythms, mechanisms, and also gameplay & options
 # Variation 1
-    Its simply the game, directly starts from the game table and it only manages the gameplay only
+    Its the game ui & logic direct and simple implementation only, directly starts from the game table and it only manages the gameplay only
     But its code is much less complicated than the 2nd variation
 
 # Variation 2
