@@ -1,916 +1,797 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
-#include <stdlib.h>
 // #include <conio.h>
-#include "include/console.h"
-#include <time.h>
+#include "include/console.h";
+#include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
+#include <time.h>
 
-#define EMPTY 0
-#define S_1 1
-#define E_1 2
-#define H_1 3
-#define C_1 4
-#define Q_1 5
-#define K_1 6
-#define S_2 7
-#define E_2 8
-#define H_2 9
-#define C_2 10
-#define Q_2 11
-#define K_2 12
-
-#define COLOMNS 12
-#define ROWS 2
-#define CAPACITY 6
-#define WRONG_MOVE -100
-#define DONE 100
-#define PIECES 15
-#define TYPES 6
-#define NO_MOVES -200
-#define USED -300
-#define savedGame "gameSave.dat"
-#define savedGameNumber "numberOfSavedGames.dat"
-#define SAVE_INTERRUPTED -1000
-#define OUT -1
-#define SHOW 100
-#define HIDE -100
-
-char *names[ COLOMNS + 1 ] = { { "    " }, { "S_1 " }, { "E_1 " }, { "H_1 " }, { "C_1 " }, { "Q_1 " }, { "K_1 " }, { "S_2 " }, { "E_2 " }, { "H_2 " }, { "C_2 " }, { "Q_2 " }, { "K_2 " } };
-char *rooms[ COLOMNS * 2 + 1 ] = { "C1_1", "C1_2", "C1_3", "C1_4", "C1_5", "C1_6", "R1_1", "R1_2", "R1_3", "R1_4", "R1_5", "R1_6", "C2_1", "C2_2", "C2_3", "C2_4", "C2_5", "C2_6", "R2_1", "R2_2", "R2_3", "R2_4", "R2_5", "R2_6" ,"O"};
-char *oNames[COLOMNS + 1] = { "   ", "O_S", "O_E", "O_H", "O_C", "O_Q", "O_K", "O_S", "O_E", "O_H", "O_C", "O_Q", "O_K" };
-
-int board[2][COLOMNS][CAPACITY] = { EMPTY };
-int playerOs[2][PIECES] = { EMPTY };
-int point[2] = { 0 };
-int holes[3][2] = { EMPTY }, coins[3][2] = { EMPTY };
-int playerBanned[2] = { 0 };
-int coinsCollected[2] = { 0 };
-int newSaveNumber = 1;
-
-void convertToUpperCase(char*);
-int loadBoard();
-void updateBoard();
-void obtainMove(char*, char*,int*);
-int selectDice(int , int, int, int, int, int* , int*);
-int movePlayer(int , int , int, int, int, int);
-int freeThePiece(int,int,int);
-int findFreePiece(int, int);
-void checkForCoinRelease(int, int);
-int checkResult(int);
-void showMsg(int, int, int, int);
-int isPlayerCastleFull(int);
-int movePieceToO(int, int, int, int);
-int anyMoveLeft(int,int);
-void createHolesAndCoins();
-int loadNames(int);
-int save(int);
-
-int main()
+struct DICE
 {
-	int turn = 0,saveResult = 0,dice1 = 0,dice2 = 0;
-	char temp;
-	int index = 0;
-	int dices[2] = { 0 };
-	char source[10], destination[10];
-	int moveInfo[5];
-	int result = 0;
-	int moves = 2;
-	int availableDices = 2;
-	int matched = 0;
-	srand(time(NULL));
-	turn = loadBoard();
-	while (1)
-	{
-		updateBoard();
-		printf("\nPlayer %d, please press \'d\' to throw dices...", turn + 1);
-		char input = getch();
-		if (input == 'd' || input == 'D')
-		{
-			if (playerBanned[turn] != 0)
-			{
-				playerBanned[turn]--;
-				printf("\nPlayer %d is banned!\n", turn+1);
-				result = 0;
-				turn = (turn + 1) % 2;
-				getch();
-				continue;
-			}
-			moves = 2;
-			dice1 = dices[0] = rand() % 6 + 1;;
-			dice2 = dices[1] = rand() % 6 + 1;
-			availableDices = 2;
-			if (dices[0] == dices[1])
-				moves = 4;
+	int first;
+	int second;
+	int is_double; // whether the two dice are equal (a double)
+	int previous_move; // the player's previous move; 0 means no move has been made yet
+} dice ;
 
-			for (int i = 0; i < moves; i++)
-			{
-				updateBoard();
-				matched = 0;
-				printf("\nDices: %d , %d", dice1, dice2);
-				if (i == 2 && dice1 == dice2 && dices[0] == USED && dices[1] == USED)
-					dices[0] = dices[1] = dice1;
-				for (int c = 0; c < 2 && !anyMoveLeft(turn, dices[c]); c++)
-					availableDices--;
-				if (availableDices == 0)
-				{
-					showMsg(turn + 1, NO_MOVES, i, moves);
-					getch();
-					break;
-				}
-				showMsg(turn + 1, result, i, moves);
-				result = 0;
-				scanf("%s%s", source, destination);
-				convertToUpperCase(source);
-				convertToUpperCase(destination);
-				obtainMove(source, destination, moveInfo);
-
-				if (playerOs[turn][0] != EMPTY)
-				{
-					int pieceIndex;
-					for (pieceIndex = 0; pieceIndex <= COLOMNS && strcmp(oNames[playerOs[turn][pieceIndex]], source); pieceIndex++);
-					if (pieceIndex > COLOMNS)
-					{
-						result = WRONG_MOVE;
-					}
-					else
-					{
-						index = selectDice(turn, OUT, OUT, moveInfo[3], moveInfo[4], dices, &matched);
-						if (matched == 0)
-							result = WRONG_MOVE;
-						else
-							result = freeThePiece(turn, pieceIndex, dices[index]);
-						if (result == DONE)
-							dices[index] = USED;
-					}
-				}
-				else if (!strcmp(destination, rooms[24]))
-				{
-					index = selectDice(turn, moveInfo[1], moveInfo[2], moveInfo[3], moveInfo[4], dices, &matched);
-					result = movePieceToO(turn, moveInfo[1], moveInfo[2], dices[index]);
-					if (result == DONE)
-						dices[index] = USED;
-
-				}
-				else if (moveInfo[0] == 2)
-				{
-					index = selectDice(turn, moveInfo[1], moveInfo[2], moveInfo[3], moveInfo[4], dices, &matched);
-					result = movePlayer(turn, dices[index], moveInfo[1], moveInfo[2], moveInfo[3], moveInfo[4]);
-					if (result == DONE)
-						dices[index] = USED;
-				}
-				else
-				{
-					result = WRONG_MOVE;
-				}
-				if (result == WRONG_MOVE)
-					i--;
-				if (i == moves - 1)
-				{
-					updateBoard();
-					showMsg(turn + 1, result, moves, moves);
-				}
-			}
-
-			result = 0;
-			turn = (turn + 1) % 2;
-			getch();
-
-		}
-		printf("\ns. Save Game\to.w. Next Move ");
-		if ((temp = getch()) == 's' || temp == 'S')
-		{
-			saveResult = save(turn);
-			if (saveResult == SAVE_INTERRUPTED)
-				printf("\nSaving Failed !\n");
-			else
-				printf("\nShatnard%d Saved. ", newSaveNumber - 1);
-			getch();
-		}
-	}
-}
-
-int loadBoard()
+const struct PIECE
 {
-	char t;
-	int turn = 0,saveNumber = 0;
-	newSaveNumber = loadNames(HIDE);
-	while (1)
-	{
+	char type;
+	int number;
+} empty = { 0, 0 };
 
-		system(CLEAR_SCREEN);
-		printf("1. Continue \n2. New Game\n3. Load From Map File :");
-		t = getch() - '0';
-		if (t == 2)
-		{
-			/* Player 1 */
-			board[0][0][0] = K_2;
-			board[0][0][1] = Q_2;
-
-			board[0][5][0] = C_1;
-			board[0][5][1] = S_1;
-			board[0][5][2] = H_1;
-			board[0][5][3] = S_1;
-			board[0][5][4] = C_1;
-
-			board[0][7][0] = S_1;
-			board[0][7][1] = E_1;
-			board[0][7][2] = S_1;
-
-			board[0][11][0] = S_2;
-			board[0][11][1] = H_2;
-			board[0][11][2] = S_2;
-			board[0][11][3] = S_2;
-			board[0][11][4] = E_2;
-
-			/* Player 2 */
-			board[1][0][0] = K_1;
-			board[1][0][1] = Q_1;
-
-			board[1][5][0] = C_2;
-			board[1][5][1] = S_2;
-			board[1][5][2] = H_2;
-			board[1][5][3] = S_2;
-			board[1][5][4] = C_2;
-
-			board[1][7][0] = S_2;
-			board[1][7][1] = E_2;
-			board[1][7][2] = S_2;
-
-			board[1][11][0] = S_1;
-			board[1][11][1] = H_1;
-			board[1][11][2] = S_1;
-			board[1][11][3] = S_1;
-			board[1][11][4] = E_1;
-			createHolesAndCoins();
-			break;
-		}
-		else if (t == 1)
-		{
-			FILE *f = fopen(savedGame, "r");
-			if (!f)
-			{
-				printf("\nNo saves found! Try again...");
-				newSaveNumber = 1;
-				getch();
-				continue;
-			}
-			newSaveNumber = loadNames(SHOW);
-			do
-			{
-				printf("\nEnter the number of the save you want: ");
-				scanf("%d", &saveNumber );
-			} while (saveNumber <= 0 || saveNumber >= newSaveNumber);
-			for (int i = 0; i < saveNumber; i++)
-			{
-				char temp[50];
-				fscanf(f, "%s", temp);
-				for (int i = 0; i < ROWS; i++)
-				{
-					for (int j = 0; j < COLOMNS; j++)
-					{
-						for (int k = 0; k < CAPACITY; k++)
-						{
-							fscanf(f, "%d", &board[i][j][k]);
-						}
-					}
-				}
-
-				for (int i = 0; i < 2; i++)
-				{
-					for (int j = 0; j < PIECES; j++)
-					{
-						fscanf(f, "%d", &playerOs[i][j]);
-					}
-				}
-
-				fscanf(f, "%d%d", &point[0], &point[1]);
-
-				for (int i = 0; i < 3; i++)
-					fscanf(f, "%d%d", &holes[i][0], &holes[i][1]);
-
-				for (int i = 0; i < 3; i++)
-					fscanf(f, "%d%d", &coins[i][0], &coins[i][1]);
-
-				fscanf(f, "%d%d%d%d%d", &playerBanned[0], &playerBanned[1], &coinsCollected[0], &coinsCollected[1], &turn);
-			}
-			break;
-		}
-		else if (t == 3)
-		{
-			int c = 0;
-			char address[100], temp[5] = { 0 };
-			int realm = 1, room = 0, piece = 0;
-			FILE *fMap;
-			printf("\n\nMap File Address: ");
-			scanf("%s", address);
-			fMap = fopen(address, "r");
-			if (!fMap)
-			{
-				printf("Error in openning the map file , Try again!\n");
-				getch();
-				continue;
-			}
-			while (fgetc(fMap) != '\n');
-			while (!feof(fMap))
-			{
-				
-				int i = 0;
-				int index = 0;
-				temp[0] = temp[1] = temp[2] = temp[3] = temp[4] = 0;
-				temp[3] = ' ';
-				if (realm == 0 && piece < 0 && room == 0)
-				{
-					break;
-				}
-				for (i = 0; i < 3; i++)
-				{
-					temp[i] = fgetc(fMap);
-					if (temp[i] == '|')
-						temp[i] = fgetc(fMap);
-					if (temp[i] == '\n')
-					{
-						if (realm == 1)
-							piece++;
-						else
-							piece--;
-						break;
-					}
-				}
-				if (piece >= CAPACITY)
-				{
-					piece = CAPACITY - 1;
-					realm = 0;
-				}
-				if (temp[i] == '\n')
-				{
-					board[realm][room][piece] = EMPTY;
-					room = 0;
-					temp[0] = temp[1] = temp[2] = temp[3] = temp[4] = 0;
-				}
-				else
-				{
-					for (; index < COLOMNS + 1 && strcmp(temp, names[index]); index++);
-					board[realm][room][piece] = index;
-					room = (room + 1) % COLOMNS;
-				}
-			}
-			createHolesAndCoins();
-			break;
-		}
-	}
-	fcloseall();
-	return turn;
-}
-
-void updateBoard()
+struct PLAYER
 {
-	int outCounter = 0;
-	system(CLEAR_SCREEN);
-	printf("Player2's Castle\t\tRoad number 2\t\t\tPlayer1 Cell | Player2 Cell\n");
-	printf(" 1   2   3   4   5   6  |");
-	printf(" 1   2   3   4   5   6\t\t\t\t     |\n");
-	for (int i = 0; i < CAPACITY; i++)
-	{
-		for (int j = 0; j < COLOMNS; j++)
-		{
-			printf("%s", names[ board[1][j][i] ]);
-			if (j == 5)
-				printf("|");
-		}
-		printf("\t\t\t%s  |  %s\n",oNames[playerOs[0][outCounter]], oNames[playerOs[1][outCounter]]);
-		outCounter++;
-	}
+	int remaining_pieces;// pieces not yet borne off (to O)
+	int coins; // number of coins the player has
+	int hole_turns; // remaining turns trapped in a hole
+	int prisoner_count; // number of imprisoned pieces
+	struct PIECE prisoner_pieces[15];
+}p1 = { 15, 0, 0 , 0, { 0 } }, p2 = { 15, 0, 0 , 0, { 0 } };
 
-	for (int i = CAPACITY - 1; i >= 0; i--)
-	{
-		for (int j = 0; j < COLOMNS; j++)
-		{
-			printf("%s", names[board[0][j][i]]);
-			if (j == 5)
-				printf("|");
-		}
-		printf("\t\t\t%s  |  %s\n", oNames[playerOs[0][outCounter]], oNames[playerOs[1][outCounter]]);
-		outCounter++;
-	}
-	printf(" 1   2   3   4   5   6  |");
-	printf(" 1   2   3   4   5   6   ");
-	printf("\t\t\t%s  |  %s\n", oNames[playerOs[0][outCounter]], oNames[playerOs[1][outCounter]]);
-	printf("Player1's Castle\t\tRoad number 1\n");
-}
-
-void convertToUpperCase(char *s)
+struct ROOM
 {
-	for (int i = 0; s[i]; i++)
-		if (s[i] >= 'a' && s[i] <= 'z')
-			s[i] += 'A' - 'a';
-}
+	char type; // 'R' for Road, 'C' for Castle
+	int status;// 2: has a coin   1: has a hole   0: empty
+	int piece_count;// number of pieces currently in this room
+	int resident; // which player's pieces occupy this room
+	struct PIECE pieces[5];// the pieces held in this room
+} board[24] = {
+{ 'C', 0, 2, 1, { { 'K', 1 }, { 'Q', 1 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },				{ 'C', 0, 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }} },
+{ 'C', 0, 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },					{ 'C', 0, 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },
+{ 'C', 0, 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },					{ 'C', 0, 5, 2, { { 'C', 2 }, { 'S', 2 }, { 'H', 2 }, { 'S', 2 }, { 'C', 2 } } },
+{ 'R', 0, 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },					{ 'R', 0, 3, 2, { { 'S', 2 }, { 'E', 2 }, { 'S', 2 }, { 0, 0 }, { 0, 0 } } },
+{ 'R', 0, 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },					{ 'R', 0, 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },
+{ 'R', 0, 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },					{ 'R', 0, 5, 1, { { 'S', 1 }, { 'H', 1 }, { 'S', 1 }, { 'S', 1 }, { 'E', 1 } } },
+{ 'R', 0, 5, 2, { { 'S', 2 }, { 'H', 2 }, { 'S', 2 }, { 'S', 2 }, { 'E', 2 } } },		{ 'R', 0, 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },
+{ 'R', 0, 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },					{ 'R', 0, 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },
+{ 'R', 0, 3, 1, { { 'S', 1 }, { 'E', 1 }, { 'S', 1 }, { 0, 0 }, { 0, 0 } } },			{ 'R', 0, 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },
+{ 'C', 0, 5, 1, { { 'C', 1 }, { 'S', 1 }, { 'H', 1 }, { 'S', 1 }, { 'C', 1 } } },		{ 'C', 0, 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },
+{ 'C', 0, 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },					{ 'C', 0, 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },
+{ 'C', 0, 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },					{ 'C', 0, 2, 2, { { 'K', 2 }, { 'Q', 2 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } }
+}; // initial placement of pieces   0-5: Player2's Castle   6-11: Road Number 2   12-17: Road Number 1   18-23: Player1's Castle
 
-void createHolesAndCoins()
+int turn = 1;
+
+int are_equal(struct PIECE a1, struct PIECE a2)// check whether two pieces are equal
 {
-	int n = rand() % 3;
-	for (int i = 0; i <= n; i++)
-	{
-		do
-		{
-			holes[i][0] = rand() % ROWS;
-			holes[i][1] = rand() % (COLOMNS/2) + (COLOMNS / 2);
-		}while(board[holes[i][0]][holes[i][1]][0] != EMPTY);
-	}
-	n = rand() % 3;
-	for (int i = 0; i <= n; i++)
-	{
-		do
-		{
-			coins[i][0] = rand() % ROWS;
-			coins[i][1] = rand() % COLOMNS;
-		} while ( board[coins[i][0]][coins[i][1]][0] != EMPTY || (coins[i][0] == holes[i][0] && coins[i][1] == holes[i][1]));
-	}
-}
-
-int anyMoveLeft(int player, int dice)
-{
-	int r1 = 0, r2 = 0, numberOfPiecesInCastle = 0;
-	for (int j = 0; j < COLOMNS; j++)
-	{
-		if (player == 0 )
-		{
-			if (playerOs[0][0] != EMPTY)
-			{
-				if (board[1][dice - 1][CAPACITY - 1] <= K_1 && board[1][dice - 1][CAPACITY - 1] != EMPTY)
-					return 0;
-				else if (board[1][dice - 1][1] >= S_2)
-					return 0;
-			}
-			if (board[0][j][0] <= K_1 && board[0][j][0] > EMPTY)
-			{
-				r1 = (j + 1 - dice);
-				if (r1 == 0)
-					return 1;
-				if (r1 > 0)
-				{
-					if (board[0][j - dice][1] <= K_1 && board[0][j-dice][CAPACITY-1] == EMPTY)
-						return 1;
-				}
-			}
-			if (board[1][j][0] <= K_1 && board[1][j][0] >= EMPTY)
-			{
-				r1 = (j + dice) % COLOMNS;
-				r2 = (j + dice) / COLOMNS;
-				if (r2 == 0)
-				{
-					if (board[1][j + dice][1] <= K_1 && board[1][ j + dice ][CAPACITY - 1] )
-						return 1;
-				}
-				else
-				{
-					if (board[0][COLOMNS - r1 - 1][1] <= K_1 && board[1][j + dice][CAPACITY - 1])
-						return 1;
-				}
-			}
-		}
-		else
-		{
-			if (playerOs[1][0] != EMPTY)
-			{
-				if (board[0][dice - 1][1] >= S_2 && board[0][dice - 1][CAPACITY - 1] != EMPTY)
-					return 0;
-				else if (board[0][dice - 1][1] <= K_1 && board[0][dice - 1][1] != EMPTY)
-					return 0;
-			}
-			if (board[1][j][0] >= S_2)
-			{
-				r1 = (j + 1 - dice);
-				if (r1 == 0)
-					return 1;
-				if (r1 > 0)
-				{
-					if (board[0][j - dice][1] <= K_1)
-						return 1;
-				}
-			}
-			if (board[0][j][0] >= S_2 )
-			{
-				r1 = (j + dice) % COLOMNS;
-				r2 = (j + dice) / COLOMNS;
-				if (r2 == 0)
-				{
-					if (board[0][j + dice][1] <= K_1)
-						return 1;
-				}
-				else
-				{
-					if (board[1][COLOMNS - r1 - 1][1] <= K_1)
-						return 1;
-				}
-			}
-		}
-	}
-
-	return isPlayerCastleFull(player) && dice >= 4 && ((player == 0 && board[player][3][0] <= K_1 && board[player][3][0] > EMPTY) || (player == 1 && board[player][3][0] >= S_2));
-
-}
-
-void obtainMove(char *s, char *d, int *r)
-{
-	r[0] = 0;
-	for (int i = 0; i < COLOMNS*ROWS +1; i++)
-	{
-		if (!strcmp(s, rooms[i]))
-		{
-			r[1] = i / 12;
-			r[2] = i % 12;
-			r[0]++;
-		}
-		if (!strcmp(d, rooms[i]))
-		{
-			r[3] = i / 12;
-			r[4] = i % 12;
-			r[0]++;
-		}
-	}
-}
-
-int selectDice(int player , int sRealm, int sRoom, int dRealm, int dRoom,  int *dices , int *matched)
-{
-	int step = player == sRealm ? -1 : 1 , distance,flag;
-
-	if (sRealm == OUT)
-	{
-		if (dRealm == (player + 1) % 2)
-		{
-			if (dRoom == dices[0] - 1)
-			{
-				*matched = 1;
-				return 0;
-			}
-			if (dRoom == dices[1] - 1)
-			{
-				*matched = 1;
-				return 1;
-			}
-		}
-		*matched = 0;
-		return 0;
-	}
-
-	if (dices[0] == dices[1])
-		return 0;
-	if (dices[0] == USED)
+	if (a1.type == a2.type && a2.number == a2.number)
 		return 1;
-	if (dices[1] == USED)
-		return 0;
-
-	if (sRealm == dRealm)
-	{
-		if (dRoom == sRoom + step*dices[0])
-		{
-			*matched = 1;
-			return 0;
-		}
-		if (dRoom == sRoom + step*dices[1])
-		{
-			*matched = 1;
-			return 1;
-		}
-	}
-	else if ( dRealm != 2 )
-	{
-		if (step != -1)
-		{
-			distance = (COLOMNS - sRoom) + (COLOMNS - dRoom) - 1;
-			if (distance == dices[0])
-			{
-				*matched = 1;
-				return 0;
-			}
-			if (distance == dices[1])
-			{
-				*matched = 1;
-				return 1;
-			}
-		}
-	}
-	else if ( dRealm == 2 )
-	{
-		flag = isPlayerCastleFull(player);
-		if ((sRealm == player && sRoom == dices[0] - 1) || (flag == 1 && sRoom == 3 && dices[0] >= 4))
-		{
-			*matched = 1;
-			return 0;
-		}
-		if ((sRealm == player && sRoom == dices[1] - 1) || (flag == 1 && sRoom == 3 && dices[1] >= 4))
-		{
-			*matched = 1;
-			return 1;
-		}
-	}
-	*matched = 0;
 	return 0;
 }
 
-void showMsg(int player, int r, int i, int moves)
+void piece_to_string(struct PIECE m, char *piece_str)
 {
-	char *moveOrders[4] = { "first", "second", "third", "forth" };
-	if (r == WRONG_MOVE)
-		printf("\nWrong move Player %d, please try again: ", player);
-	else if (r == NO_MOVES)
-		printf("\nplayer %d, No moves available", player);
-	else if (r == 0)
-		printf("\nPlayer %d, please enter your %s source and destination: ",player, moveOrders[i]);
-	else if (i == moves)
-		printf("\nNice move Player %d, end of your turn...", player);
-	else
-		printf("\nNice move Player %d , now please enter your %s source and destination: ", player, moveOrders[i]);
+ 
+	piece_str[0] = m.type;
+	piece_str[1] = '_';
+	piece_str[2] = (char)m.number + '0';// 'number' is an integer converted to a char digit
+	if (are_equal(m, empty))
+		piece_str[0] = piece_str[1] = piece_str[2] = ' ';
 }
-int movePlayer(int player ,int dice , int sRealm,int sRoom ,int dRealm,int dRoom)
-{
-	int piece, dFirstFree, distance , cellFirstFree;
-	int nextPlayer = (player + 1) % 2;
-	int step = player == sRealm ? -1 : 1 ;
-	if (board[sRealm][sRoom][0] == EMPTY)
-		return WRONG_MOVE;
-	if ((player == 0 && board[sRealm][sRoom][0] >= S_2) || (player == 1 && board[sRealm][sRoom][0] <= K_1))
-		return WRONG_MOVE;
-	piece = findFreePiece(sRealm, sRoom);
-	if (board[dRealm][dRoom][0] == EMPTY)
-		dFirstFree = 0;
-	else
-		dFirstFree = findFreePiece(dRealm, dRoom) + 1;
 
-	if (sRealm == dRealm)
+struct PIECE string_to_piece(char s[])
+{
+	struct PIECE m = { toupper(s[0]), s[2] - '0' };
+	return m;
+}
+
+void room_to_string(int index,char *room_str)
+{
+	if (index >= 6 && index <= 17)// follows how the rooms are ordered in the array
+		room_str[0] = 'R';
+	else
+		room_str[0] = 'C';
+
+	if (index <= 11)
 	{
-		if (dRoom == sRoom + step*dice)
-		{
-			if ((player == 0 && board[dRealm][dRoom][0] >= S_2) || (player == 1 && board[dRealm][dRoom][0] <= K_1 && board[dRealm][dRoom][0] > EMPTY))
-			{
-				
-				if (board[dRealm][dRoom][1] != EMPTY)
-					return WRONG_MOVE;
-				else
-				{
-					for (cellFirstFree = 0; playerOs[nextPlayer][cellFirstFree] != EMPTY; cellFirstFree++);
-					playerOs[nextPlayer][cellFirstFree] = board[dRealm][dRoom][0];
-					board[dRealm][dRoom][0] = board[sRealm][sRoom][piece];
-					board[sRealm][sRoom][piece] = EMPTY;
-					checkForCoinRelease(nextPlayer,cellFirstFree);
-				}
-			}
-			else if (board[dRealm][dRoom][CAPACITY - 1] != EMPTY)
-				return WRONG_MOVE; 
-			else
-			{
-				
-				board[dRealm][dRoom][dFirstFree] = board[sRealm][sRoom][piece];
-				board[sRealm][sRoom][piece] = EMPTY;
-				
-			}
-		}
+		room_str[1] = '1';
+		room_str[3] = (index % 6) + 1 + '0'; // follows how the rooms are ordered in the array
+	}
+	else
+	{
+		int t = ( 23 - index ) % 6 + 1;
+		room_str[1] = '2';
+		room_str[3] = t + '0'; // convert the integer digit to a char digit
+	}
+	room_str[2] = '_';
+	room_str[4] = '\0';
+}
+
+int string_to_room(char *room_str)
+{
+	char region = toupper( room_str[0] ) ;
+	int field_number = room_str[1] - '0', room_number = room_str[3] - '0';
+	room_str[4] = '\0';
+	if (room_str[2] != '_'){
+		return -2; // validate that the input format is correct
+	}
+	if (region == 'O')
+	{
+		if (turn == 1)
+			return 24;
 		else
-			return WRONG_MOVE;
+			return -1;
 	}
-	else
+	if (region == 'C')
 	{
-		if (step == -1)
+		if (room_number >= 1 && room_number <= 6)
 		{
-			return WRONG_MOVE;
+			if (field_number == 2)
+				return room_number - 1;
+			if (field_number == 1)
+				return 24 - room_number;
 		}
-		else
-		{
-			if ((player == 0 && board[dRealm][dRoom][0] >= S_2) || (player == 1 && board[dRealm][dRoom][0] <= K_1 && board[dRealm][dRoom][0] > EMPTY))
-			{
+	}
 
-				if (board[dRealm][dRoom][1] != EMPTY)
-					return WRONG_MOVE;
-				else
-				{
-					for (cellFirstFree = 0; playerOs[nextPlayer][cellFirstFree] != EMPTY; cellFirstFree++);
-					playerOs[nextPlayer][cellFirstFree] = board[dRealm][dRoom][0];
-					board[dRealm][dRoom][0] = board[sRealm][sRoom][piece];
-					board[sRealm][sRoom][piece] = EMPTY;
-					checkForCoinRelease(nextPlayer, cellFirstFree);
-				}
-			}
-			else if (board[dRealm][dRoom][CAPACITY - 1] != EMPTY)
-				return WRONG_MOVE;
-			else
-			{
-				distance = (COLOMNS - sRoom) + (COLOMNS - dRoom) - 1;
-				if (distance == dice)
-				{
-					board[dRealm][dRoom][dFirstFree] = board[sRealm][sRoom][piece];
-					board[sRealm][sRoom][piece] = EMPTY;
-				}
-				else
-					return WRONG_MOVE;
-			}
-		}
-	}
-	for (int i = 0; i < 3; i++)
+	if (region == 'R')
 	{
-		if (holes[i][0] == dRealm && holes[i][1] == dRoom)
+		if (room_number >= 1 && room_number <= 6)
 		{
-			playerBanned[player] = 2;
-			printf("\nPlayer %d, There was a hole right there ! You are banned for 2 turns!\n", player+1);
-			getch();
-		}
-		else if (coins[i][0] == dRealm && coins[i][1] == dRoom)
-		{
-			coinsCollected[player]++;
-			coins[i][0] = coins[i][1] = USED;
-			printf("\n+1 coins collected! Player %d coins: %d\n", player+1, coinsCollected[player]);
-			getch();
+			if (field_number == 2)
+				return 5 + room_number;
+			if (field_number == 1)
+				return 12 + (6 - room_number);
 		}
 	}
-	return DONE;
+	return -2;
 }
 
-void checkForCoinRelease(int player,int cellFirstFree)
+void display()
 {
-	if (coinsCollected[player] > 0)
+	int i, j;
+	char piece_str[4] = { 0 };
+	printf("Player2's Castle\tRoad Number 2\n");
+	for (j = 1; j <= 2; j++)
 	{
-		int search;
-		for (search = 0; search < COLOMNS / 2; search++)
-			if (board[player][search][0] == EMPTY)
-				break;
-		if (search < COLOMNS / 2)
+		for (i = 1; i <= 6; i++)
 		{
-			char c;
-			printf("\n\nPlayer %d, do you want to use your coin? y. Yes o.w. No ", player);
-			c = getch();
-			if (c == 'y' || c == 'Y')
-			{
-				coinsCollected[player]--;
-				board[(player + 1) % 2][search][0] = playerOs[player][cellFirstFree];
-				playerOs[player][cellFirstFree] = EMPTY;
-			}
+			printf(" %d ", i);
 		}
+		putchar(' ');
 	}
-}
+	putchar('\n');
 
-int findFreePiece(int realm, int room)
-{
-	int x = CAPACITY - 1;
-	for (;x >= 0 && board[realm][room][x] == EMPTY; x--);
-	return x;
-}
-
-int freeThePiece(int player , int pIndex , int dice)
-{ 
-	int nextPlayer = (player + 1) % 2, cellFirstFree;
-	int dFirstFree;
-	if (board[nextPlayer][dice - 1][0] == EMPTY)
-		dFirstFree = 0;
-	else
-		dFirstFree = findFreePiece(nextPlayer, dice - 1) + 1;
-	if (board[nextPlayer][dice - 1][CAPACITY - 1] != EMPTY)
-		return WRONG_MOVE;
-	if ((player == 0 && board[1][dice - 1][1] >= S_2) || (player == 1 && board[0][dice - 1][1] <= K_1 && board[0][dice - 1][1] > EMPTY))
-		return WRONG_MOVE;
-	if ((player == 0 && board[1][dice - 1][0] >= S_2) || (player == 1 && board[0][dice - 1][0] <= K_1 && board[0][dice - 1][0] > EMPTY))
+	for (j = 0; j <= 4; j++)
 	{
-		for (cellFirstFree = 0; playerOs[nextPlayer][cellFirstFree] != EMPTY; cellFirstFree++);
-		playerOs[nextPlayer][cellFirstFree] = board[nextPlayer][dice - 1][0];
-		board[nextPlayer][dice - 1][0] = playerOs[player][pIndex] ;
-		playerOs[player][pIndex] = EMPTY;
-		checkForCoinRelease(nextPlayer, cellFirstFree);
-	}
-	else
-	{
-		board[nextPlayer][dice - 1][dFirstFree] = playerOs[player][pIndex];
-		playerOs[player][pIndex] = EMPTY;
-	}
-	for (int i = pIndex; i < PIECES-1; i++)
-	{
-		playerOs[player][i] = playerOs[player][i + 1];
-
-	}
-	for (int i = 0; i < 3; i++)
-	{
-		if (holes[i][0] == nextPlayer && holes[i][1] == dice - 1)
+		for (i = 0; i <= 11; i++)
 		{
-			playerBanned[player] = 2;
-			printf("\nPlayer %d, There was a hole right there ! You are banned for 2 turns!\n", player);
+			if (i == 6)
+				putchar('|');
+			piece_to_string(board[i].pieces[j],piece_str);
+			printf("%s", piece_str);
 		}
-		else if (coins[i][0] == nextPlayer && coins[i][1] == dice - 1)
-		{
-			coinsCollected[player]++;
-			coins[i][0] = coins[i][1] = USED;
-			printf("\n+1 coins collected! Player %d coins: %d\n", player, coinsCollected[player]);
-		}
-	}
-	return DONE;
-}
-
-int isPlayerCastleFull(int player)
-{
-	int numberOfPiecesInCastle = 0, flag = 0;
-	for (int i = 0; i <= 3; i++)
-	{
-		for (int j = 0; j <= CAPACITY && board[player][i][j] != EMPTY; j++)
-		{
-			if (player == 0 && board[player][i][j] > EMPTY && board[player][i][j] <= K_1)
-				numberOfPiecesInCastle++;
-			else if (player == 1 && board[player][i][j] >= S_2)
-				numberOfPiecesInCastle++;
-		}
-	}
-	if (numberOfPiecesInCastle == PIECES - point[player])
-		flag = 1;
-	return flag;
-}
-
-int movePieceToO(int player, int sRealm, int sRoom, int dice)
-{
-	int flag = 0;
-	int piece = findFreePiece(sRealm, sRoom), numberOfPiecesInCastle = 0;
-	if (board[sRealm][sRoom][0] == EMPTY)
-		return WRONG_MOVE;
-	if ((player == 0 && board[sRealm][sRoom][0] >= S_2) || (player == 1 && board[sRealm][sRoom][0] <= K_1))
-		return WRONG_MOVE;
-
-	flag = isPlayerCastleFull(player);
-	if ( (sRealm == player && sRoom == dice - 1) || (flag == 1 && sRoom == 3 && dice >= 4) )
-	{
-		point[player]++;
-		board[sRealm][sRoom][piece] = EMPTY;
-		if (point[player] == PIECES)
-		{
-			printf("\n*! Player %d Won !* ");
-			getch();
-			exit(0);
-		}
-	}
-	else
-		return WRONG_MOVE;
-	return DONE;
-}
-
-int loadNames(int readMode)
-{
-	FILE *fSavedNames = fopen(savedGameNumber, "r");
-	newSaveNumber = 1;
-	if (!fSavedNames)
-		return 1;
-	if (readMode == SHOW)
-		printf("\n\nSaves:\n");
-	fscanf(fSavedNames, "%d", &newSaveNumber);
-	newSaveNumber++;
-	if (readMode == SHOW)
-	{
-		for (int i = 1; i < newSaveNumber; i++)
-		{
-			printf("%d. Shatnard%d\n",i, i);
-		}
-	}
-	return newSaveNumber;
-	fclose(fSavedNames);
-}
-
-int save(int turn)
-{
-	FILE *f = fopen(savedGame, "a");
-	FILE *fSaveNames = fopen(savedGameNumber, "w");
-	if (!f)
-	{
-		f = fopen(savedGame, "w");
-		newSaveNumber = 1;
-		if (!f || !fSaveNames)
-			return SAVE_INTERRUPTED;
-	}
-
-	fprintf(f, "Shatnard%d\n", newSaveNumber);
-	fprintf(fSaveNames, "%d\n", newSaveNumber);
-	fclose(fSaveNames);
-	for (int i = 0; i < ROWS; i++)
-	{
-		for (int j = 0; j < COLOMNS; j++)
-		{
-			for (int k = 0; k < CAPACITY; k++)
-			{
-				fprintf(f, "%d\n", board[i][j][k]);
-			}
-		}
+		putchar('\n');
 	}
 	
-	for (int i = 0; i < 2; i++)
+	for (j = 0; j <= 1; j++)
 	{
-		for (int j = 0; j < PIECES; j++)
+		for (i = 0; i <= 11; i++)
 		{
-			fprintf(f, "%d\n", playerOs[i][j]);
+			if (i == 6)
+				putchar('|');
+			printf("   ");
+		}
+		putchar('\n');
+	}
+	for (j = 4; j >= 0; j--)
+	{
+		for (i = 23; i >= 12; i--)
+		{
+			if (i == 17)
+				putchar('|');
+			piece_to_string(board[i].pieces[j], piece_str);
+			printf("%s", piece_str);
+		}
+		putchar('\n');
+	}
+
+	for (j = 1; j <= 2; j++)
+	{
+		for (i = 1; i <= 6; i++)
+		{
+			printf(" %d ", i);
+		}
+		putchar(' ');
+	}
+	putchar('\n');
+	printf("Player1's Castle\tRoad Number 1\n\n\n");
+}
+
+int is_valid_piece(char m)
+{
+	switch (toupper(m))
+	{
+	case 'Q':
+	case 'K':
+	case 'C':
+	case 'S':
+	case 'H':
+	case 'E':
+		return 1;
+	default:
+		return 0;
+	}
+	return 0;
+}
+
+int can_bear_off(int source)
+{
+	int i;
+	if (turn == 1)// if all of a player's pieces are home in the castle, none may remain elsewhere
+	{
+		if (source < 18)
+			return 0;
+		for (i = source - 1; i >= 0; i--)
+			if (board[i].resident == 1)
+				return 0;
+	}
+	else
+	{
+		if (source > 5)
+			return 0;
+		for (i = source + 1; i <= 23; i++)
+			if (board[i].resident == 2)
+				return 0;
+	}
+	if (dice.previous_move != 1 && dice.first > source)
+	{
+		dice.previous_move = 1;
+		return 1;
+	}
+	else if (dice.previous_move != 2 && dice.second > source)
+	{
+		dice.previous_move = 2;
+		return 1;
+	}
+	return 0;
+}
+
+int validate_move(int source, int destination) // 0: invalid move   1: valid move   -1: win
+{
+	int i,j;
+	// handle re-entering an imprisoned piece onto the board
+	if (source == 24)
+	{
+
+		if (board[destination].piece_count == 5)
+		{
+			return 0;
+		}
+		if (turn == 1)
+		{
+
+			if (destination != dice.first-1 && destination != dice.second-1)
+				return 0;
+			if (dice.previous_move != 1 && destination == dice.first-1)
+			{
+				dice.previous_move = 1;
+			}
+			else if (dice.previous_move != 2 && destination == dice.second-1)
+			{
+				dice.previous_move = 2;
+			}
+			else
+				return 0;
+			if (board[destination].resident != 2)
+			{
+				board[destination].pieces[board[destination].piece_count].type = (char) (source - 24); // see the explanation of this formula in main()
+				board[destination].pieces[board[destination].piece_count].number = 1;
+				board[destination].resident = 1;
+				board[destination].piece_count++;
+				for (i = 0; i < p1.prisoner_count; i++)
+				{
+					if (p1.prisoner_pieces[i].type == (char)(source - 24))
+					{
+						for (j = 0; i + j < p1.prisoner_count; j++)
+						{
+							p1.prisoner_pieces[i + j].type = p1.prisoner_pieces[i + j + 1].type;
+							p1.prisoner_pieces[i + j].number = p1.prisoner_pieces[i + j + 1].number;
+						}
+					}
+				}
+			}
+			else if (board[destination].piece_count == 1)
+			{
+				char t = board[destination].pieces[0].type;
+				board[destination].pieces[0].type = (char)(source - 24);
+				board[destination].pieces[0].number = 1;
+				board[destination].resident = 1;
+				for (i = 0; i < p1.prisoner_count; i++)
+				{
+					if (p1.prisoner_pieces[i].type == (char)(source - 24))
+					{
+						for (j = 0; i + j < p1.prisoner_count; j++)
+						{
+							p1.prisoner_pieces[i + j].type = p1.prisoner_pieces[i + j + 1].type;
+							p1.prisoner_pieces[i + j].number = p1.prisoner_pieces[i + j + 1].number;
+						}
+					}
+				}
+				if (p2.coins == 0)
+				{
+					p2.prisoner_pieces[p2.prisoner_count].type = t;
+					p2.prisoner_pieces[p2.prisoner_count].number = 2;
+					p2.prisoner_count++;
+				}
+				else
+				{
+					int i;
+					for (i = 23; i >= 18; i--) // find the first empty room in the opponent's castle
+						if (board[i].piece_count == 0)
+							break;
+					if (i >= 18) // if the opponent's castle has an empty room
+					{
+						char answer;
+						printf("\nPlayer2, do you want to use your coins? ( number of your coins: %d )\n", p2.coins);
+						printf("1. No 2. Yes\n");
+						while ((answer = getch()) != '1' && answer != '2')
+							printf("Wrong answer,try again!\n");
+						if (answer == '2')
+						{
+							p2.coins--;
+							board[i].pieces[0].type = t;
+							board[i].pieces[0].number = 2;
+							board[i].resident = 2;
+							board[i].piece_count++;
+						}
+					}
+				}
+			}
+		}
+		else
+		{
+			if (destination != dice.first - 1 && 24 - destination != dice.second)
+				return 0;
+			if (dice.previous_move != 1 && 24 - destination == dice.first - 1)
+			{
+				dice.previous_move = 1;
+			}
+			else if (dice.previous_move != 2 && 24 - destination == dice.second - 1)
+			{
+				dice.previous_move = 2;
+			}
+			else
+				return 0;
+			if (board[destination].resident != 2)
+			{
+				board[destination].pieces[board[destination].piece_count].type = (char)(source - 24); // see the explanation of this formula in main()
+				board[destination].pieces[board[destination].piece_count].number = 1;
+				board[destination].resident = 1;
+				board[destination].piece_count++;
+				for (i = 0; i < p2.prisoner_count; i++)
+				{
+					if (p2.prisoner_pieces[i].type == (char)(source - 24))
+					{
+						for (j = 0; i + j < p2.prisoner_count; j++)
+						{
+							p2.prisoner_pieces[i + j].type = p2.prisoner_pieces[i + j + 1].type;
+							p2.prisoner_pieces[i + j].number = p2.prisoner_pieces[i + j + 1].number;
+						}
+					}
+				}
+			}
+			else if (board[destination].piece_count == 1)
+			{
+				char t = board[destination].pieces[0].type;
+				board[destination].pieces[0].type = (char)(source - 24);;
+				board[destination].pieces[0].number = 1;
+				board[destination].resident = 1;
+				for (i = 0; i < p2.prisoner_count; i++)
+				{
+					if (p2.prisoner_pieces[i].type == (char)(source - 24))
+					{
+						for (j = 0; i + j < p2.prisoner_count; j++)
+						{
+							p2.prisoner_pieces[i + j].type = p2.prisoner_pieces[i + j + 1].type;
+							p2.prisoner_pieces[i + j].number = p2.prisoner_pieces[i + j + 1].number;
+						}
+					}
+				}
+				if (p2.coins == 0)
+				{
+					p2.prisoner_pieces[p2.prisoner_count].type = t;
+					p2.prisoner_pieces[p2.prisoner_count].number = 2;
+					p2.prisoner_count++;
+				}
+				else
+				{
+					int i;
+					for (i = 23; i >= 18; i--) // find the first empty room in the opponent's castle
+						if (board[i].piece_count == 0)
+							break;
+					if (i >= 18) // if the opponent's castle has an empty room
+					{
+						char answer;
+						printf("\nPlayer2, do you want to use your coins? ( number of your coins: %d )\n", p2.coins);
+						printf("1. No 2. Yes\n");
+						while ((answer = getch()) != '1' && answer != '2')
+							printf("Wrong answer,try again!\n");
+						if (answer == '2')
+						{
+							p2.coins--;
+							board[i].pieces[0].type = t;
+							board[i].pieces[0].number = 2;
+							board[i].resident = 2;
+							board[i].piece_count++;
+						}
+					}
+				}
+			}
 		}
 	}
 
-	fprintf(f, "%d\n%d\n", point[0], point[1]);
 
-	for (int i = 0; i < 3; i++)
-		fprintf(f, "%d\n%d\n", holes[i][0], holes[i][1]);
+	// handle ordinary moves
+	if (board[source].piece_count == 0 || (destination != 24 && board[destination].piece_count == 5))
+		return 0;
+	if (board[source].resident != turn)
+		return 0;
 
-	for (int i = 0; i < 3; i++)
-		fprintf(f, "%d\n%d\n", coins[i][0], coins[i][1]);
 
-	fprintf(f, "%d\n%d\n%d\n%d\n%d\n", playerBanned[0], playerBanned[1],coinsCollected[0],coinsCollected[1],turn);
-	fclose(f);
-	newSaveNumber++;
-	return DONE;
+	if (turn == 1)
+	{
+
+		if (dice.previous_move != 1 && destination == source + dice.first)
+		{
+			dice.previous_move = 1;
+		}
+		else if (dice.previous_move != 2 && destination == source + dice.second)
+		{
+			dice.previous_move = 2;
+		}
+		else if (can_bear_off(source))
+		{
+			if (destination != 24)
+				return 0;
+
+		}
+		else if (destination != source + dice.first && destination != source + dice.second)
+		{
+			return 0;
+		}
+
+		board[source].piece_count--;
+		if (board[source].piece_count == 0)
+			board[source].resident = 0;
+		if (destination == 24)
+		{
+			p1.remaining_pieces--;
+			if (p1.remaining_pieces == 0)
+				return -1;
+		}
+		else if (board[destination].resident != 2)
+		{
+			board[destination].pieces[ board[destination].piece_count ].type = board[source].pieces[ board[source].piece_count ].type;
+			board[destination].pieces[board[destination].piece_count].number = 1;
+			board[destination].resident = 1;
+			board[destination].piece_count++;
+		}
+		else if (board[destination].piece_count == 1)
+		{
+			char t = board[destination].pieces[0].type;
+			board[destination].pieces[0].type = board[source].pieces[board[source].piece_count].type;
+			board[destination].pieces[0].number = 1;
+			board[destination].resident = 1;
+			if (p2.coins == 0)
+			{
+				p2.prisoner_pieces[p2.prisoner_count].type = t;
+				p2.prisoner_pieces[p2.prisoner_count].number = 2;
+				p2.prisoner_count++;
+			}
+			else
+			{
+				int i;
+				for (i = 23; i >= 18; i--) // find the first empty room in the opponent's castle
+					if (board[i].piece_count == 0)
+						break;
+				if (i >= 18) // if the opponent's castle has an empty room
+				{
+					char answer;
+					printf("Player2, do you want to use your coins? ( number of your coins: %d )\n", p2.coins);
+					printf("1. No 2. Yes\n");
+					while ((answer = getch()) != '1' && answer != '2')
+						printf("Wrong answer,try again!\n");
+					if (answer == '2')
+					{
+						p2.coins--;
+						board[i].pieces[0].type = t;
+						board[i].pieces[0].number = 2;
+						board[i].resident = 2;
+						board[i].piece_count++;
+					}
+				}
+			}
+		}
+		else
+		{
+			return 0;
+		}
+		board[source].pieces[board[source].piece_count].type = 0;
+		board[source].pieces[board[source].piece_count].number = 0;
+		if (destination != 24)
+		{
+			if (board[destination].status == 1)
+				p1.hole_turns = 2;
+			else if (board[destination].status == 2)
+			{
+				p1.coins++;
+				board[destination].status = 0;
+			}
+		}
+	}
+	else
+	{
+
+		if (dice.previous_move != 1 && destination == source - dice.first)
+		{
+			dice.previous_move = 1;
+		}
+		else if (dice.previous_move != 2 && destination == source - dice.second)
+		{
+			dice.previous_move = 2;
+		}
+		else if (can_bear_off(source))
+		{
+			if (destination != -1)
+				return 0;
+		}
+		else if (destination != source - dice.first && destination != source - dice.second)
+		{
+			return 0;
+		}
+
+		board[source].piece_count--;
+		if (board[source].piece_count == 0)
+			board[source].resident = 0;
+		if (destination == -1)
+		{
+			board[source].pieces[board[source].piece_count ].type = 0;
+			board[source].pieces[board[source].piece_count ].number = 0;
+			p2.remaining_pieces--;
+			if (p2.remaining_pieces == 0)
+				return -1;
+		}
+		if (board[destination].resident != 1)
+		{
+			board[destination].pieces[board[destination].piece_count].type = board[source].pieces[board[source].piece_count].type;
+			board[destination].pieces[board[destination].piece_count].number = 2;
+			board[destination].resident = 2;
+			board[destination].piece_count++;
+		}
+		else if (board[destination].piece_count == 1)
+		{
+			char t = board[destination].pieces[0].type;
+			board[destination].pieces[0].type = board[source].pieces[board[source].piece_count].type;
+			board[destination].pieces[0].number = 2;
+			board[destination].resident = 2;
+			if (p1.coins == 0)
+			{
+				p1.prisoner_pieces[p1.prisoner_count].type = t;
+				p1.prisoner_pieces[p1.prisoner_count].number = 1;
+				p1.prisoner_count++;
+			}
+			else
+			{
+				int i;
+				for (i = 0; i <=5 ; i++) // find the first empty room in the opponent's castle
+					if (board[i].piece_count == 0)
+						break;
+				if (i <= 5) // if the opponent's castle has an empty room
+				{
+					char answer;
+					printf("Player1, do you want to use your coins? ( number of your coins: %d )\n", p1.coins);
+					printf("1. No 2. Yes\n");
+					while ((answer = getch()) != '1' && answer != '2')
+						printf("Wrong answer,try again!\n");
+					if (answer == '2')
+					{
+						p1.coins--;
+						board[i].pieces[0].type = t;
+						board[i].pieces[0].number = 1;
+						board[i].resident = 1;
+						board[i].piece_count++;
+					}
+				}
+			}
+		}
+		else
+			return 0;
+
+		board[source].pieces[board[source].piece_count].type = 0;
+		board[source].pieces[board[source].piece_count].number = 0;
+		if (destination != -1)
+		{
+			if (board[destination].status == 1)
+			{
+				p2.hole_turns = 2;
+				printf("Player%d, Hole Detected Here\n", turn);
+			}
+			else if (board[destination].status == 2)
+			{
+				p2.coins++;
+				board[destination].status = 0;
+				printf("Player%d,1 Coin Collected\n", turn);
+			}
+		}
+	}
+	return 1;
+}
+
+int has_available_move()
+{
+	int i;
+	for (i = 0; i <= 23; i++)
+	{
+		if (turn == 1)
+		{
+			if (p1.prisoner_count > 0)
+			{
+				if (board[dice.first - 1].piece_count == 5 && board[dice.second - 1].piece_count == 5)
+					return 0;
+				if (board[dice.first - 1].piece_count <= 1)
+					return 1;
+				if (board[dice.second - 1].piece_count <= 1)
+					return 1;
+			}
+			if (board[i].resident == 1)
+			{
+				if (i + dice.first <= 23 && board[i + dice.first].piece_count == 5 && board[i + dice.second].piece_count == 5)
+					return 0;
+				if (i + dice.first == 24 || can_bear_off(i) || (i + dice.first <= 23 && (board[i + dice.first].piece_count <= 1 || board[i + dice.first].resident == 1)))
+					return 1;
+				if (i + dice.second == 24 || can_bear_off(i) || (i + dice.second <= 23 && ( board[i + dice.second].piece_count <= 1 || board[i + dice.second].resident == 1)))
+					return 1;
+			}
+		}
+		else
+		{
+			if (p2.prisoner_count > 0)
+			{
+				if (board[24 - dice.first].piece_count == 5 && board[24 - dice.first].piece_count == 5)
+					return 0;
+				if (board[24 - dice.first].piece_count <= 1)
+					return 1;
+				if (board[24 - dice.first].piece_count <= 1)
+					return 1;
+			}
+			if (board[i].resident == 1)
+			{
+				if (i - dice.first >= 0 && board[i - dice.first].piece_count == 5 && board[i - dice.second].piece_count == 5)
+					return 0;
+				if (i - dice.first == -1 || can_bear_off(i) || (i - dice.first >= 0 && (board[i - dice.first].piece_count <= 1 || board[i - dice.first].resident == 2)))
+					return 1;
+				if (i - dice.second == -1 || can_bear_off(i) || (i - dice.second >= 0 && (board[i - dice.second].piece_count <= 1 || board[i - dice.second].resident == 2)))
+					return 1;
+			}
+		}
+	}
+	return 0;
+}
+
+int main()
+{
+	int i,finished = 0, index_source, index_destination, coin_count, hole_count, move_result;
+	char source[10], destination[10];
+	srand(time(NULL));
+	hole_count = rand() % 3 + 1;
+	coin_count = rand() % 3 + 1;
+	for (i = 0; i < hole_count; i++)
+	{
+		int x = rand() % 24;
+		while ( board[x].type != 'R' || board[x].piece_count > 0 || board[x].status > 0 )
+			x = rand() % 24;
+		board[x].status = 1;
+	}
+	for (i = 0; i < coin_count; i++)
+	{
+		int x = rand() % 24;
+		while (board[x].piece_count > 0 || board[x].status > 0)
+			x = rand() % 24;
+		board[x].status = 2;
+	}
+
+	while (!finished)
+	{
+		system(CLEAR_SCREEN);
+		display();
+		printf("Player %d, please press 'd' to throw dices...",turn);
+		if (toupper( getch() ) == 'D')
+		{ 
+			int move_number = 1;
+			dice.first = rand() % 6 + 1;
+			dice.second = rand() % 6 + 1; 
+			dice.previous_move = 0;
+			if (dice.first == dice.second)
+				dice.is_double = 1;
+			else
+				dice.is_double = 0;
+			while ((!dice.is_double && move_number <= 2) || (dice.is_double && move_number <= 4))
+			{
+				move_result = 0;
+				printf("Dices: %d,%d\n", dice.first, dice.second);
+				if (!has_available_move())
+				{
+					printf("No move can be made!\n");
+					system("pause");
+					break;
+				}
+				printf("Player%d, please enter your ",turn);
+				if (move_number == 1)
+					printf("first");
+				else if (move_number == 2)
+					printf("second");
+				else if (move_number == 3)
+					printf("third");
+				else
+					printf("forth");
+				printf(" source and destination:\n");
+				while (!move_result)
+				{
+					scanf("%s%s", source, destination);
+					if ((turn == 1 && p1.prisoner_count > 0) || (turn == 2 && p2.prisoner_count > 0))
+					{
+						if (source[0] != 'O' || source[1] != '_' || !is_valid_piece(source[2]))
+							index_source = -2;
+						else
+							index_source = 24 + source[2];// 24 + source[2]: marks a move out of prison and also encodes the selected piece
+					}										// selected_piece = index_source - 24;
+					else
+						index_source = string_to_room(source);
+					index_destination = string_to_room(destination);
+					while (index_source == -2 || index_destination == -2)
+					{
+						printf("Wrong mover Player%d, please enter again:\n", turn);
+						scanf("%s%s", source, destination);
+						index_source = string_to_room(source);
+						index_destination = string_to_room(destination);
+					} // repeat until the user enters a valid input
+					move_result = validate_move(index_source, index_destination);
+					if (!move_result)
+						printf("Wrong mover Player%d, please enter again:\n", turn);
+
+				}
+				if (move_result == 1)
+				{
+					move_number++;
+					printf("Nice move Player%d",turn);
+					if ((!dice.is_double && move_number > 2) || (dice.is_double && move_number > 4))
+						printf(",end of your turn.\n", turn);
+					getch();
+					system(CLEAR_SCREEN);
+					display();
+				}
+				else if (move_result == -1)
+				{
+					printf("Player%d Won.", turn);
+					finished = 1;
+					break;
+				}
+			}
+			if (turn == 1)
+			{
+				if (p2.hole_turns > 0)
+				{
+					p2.hole_turns--;
+					printf("Player2 is stucked in the hole. Player1 should move again...\n");
+					system("pause");
+				}
+				else
+					turn = 2;
+			}
+			else
+			{
+				if (p1.hole_turns > 0)
+				{
+					p1.hole_turns--;
+					printf("Player1 is stucked in the hole. Player2 should move again...\n");
+					system("pause");
+				}
+				else
+					turn = 1;
+			}
+		}
+	}
+	system("pause");
 }
